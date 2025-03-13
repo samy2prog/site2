@@ -119,50 +119,60 @@ def buy():
 @app.route("/refund", methods=["POST"])
 def refund():
     try:
+        # ✅ Vérification du Content-Type
+        if request.content_type != "application/json":
+            return jsonify({"error": "Le Content-Type doit être 'application/json'"}), 415
+
         data = request.get_json()
+        if not data or "order_id" not in data:
+            return jsonify({"error": "Données manquantes ou mal formatées"}), 400
+
         order_id = data.get("order_id")
 
         conn = get_db()
         if conn:
             cursor = conn.cursor()
 
-            # Vérifier si la commande existe
+            # ✅ Vérifie si la commande existe
             cursor.execute("SELECT ip FROM orders WHERE id = %s", (order_id,))
             order = cursor.fetchone()
 
-            if order:
-                ip = order[0]
-
-                # Vérifier si l'utilisateur existe déjà
-                cursor.execute("SELECT id, refund_count FROM users WHERE ip = %s", (ip,))
-                user = cursor.fetchone()
-
-                if user:
-                    user_id, refund_count = user
-                    cursor.execute("UPDATE users SET refund_count = refund_count + 1 WHERE id = %s", (user_id,))
-                else:
-                    cursor.execute("""
-                        INSERT INTO users (ip, user_agent, fingerprint, refund_count, risk_score, created_at)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (ip, "Inconnu", hashlib.sha256(ip.encode()).hexdigest(), 1, 0, datetime.utcnow()))
-
-                # Insérer la demande de remboursement
-                cursor.execute("""
-                    INSERT INTO refunds (order_id, status, created_at)
-                    VALUES (%s, %s, %s)
-                """, (order_id, "En attente", datetime.utcnow()))
-
-                conn.commit()
-                cursor.close()
-                conn.close()
-
-                return jsonify({"message": "Demande de remboursement enregistrée"}), 200
-            else:
+            if not order:
                 return jsonify({"error": "Commande non trouvée"}), 404
+
+            ip = order[0]
+
+            # ✅ Vérifie si l'utilisateur existe déjà
+            cursor.execute("SELECT id, refund_count FROM users WHERE ip = %s", (ip,))
+            user = cursor.fetchone()
+
+            if user:
+                user_id, refund_count = user
+                cursor.execute("UPDATE users SET refund_count = refund_count + 1 WHERE id = %s", (user_id,))
+            else:
+                cursor.execute("""
+                    INSERT INTO users (ip, user_agent, fingerprint, refund_count, risk_score, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (ip, "Inconnu", hashlib.sha256(ip.encode()).hexdigest(), 1, 0, datetime.utcnow()))
+
+            # ✅ Insère la demande de remboursement
+            cursor.execute("""
+                INSERT INTO refunds (order_id, status, created_at)
+                VALUES (%s, %s, %s)
+            """, (order_id, "En attente", datetime.utcnow()))
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            return jsonify({"message": "Demande de remboursement enregistrée"}), 200
+        else:
+            return jsonify({"error": "Connexion à la base de données impossible"}), 500
 
     except Exception as e:
         print("❌ Erreur API remboursement:", e)
         return jsonify({"error": str(e)}), 500
+
 
 # 🔹 Route pour afficher le dashboard avec les utilisateurs et remboursements
 @app.route("/dashboard")
