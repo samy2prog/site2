@@ -1,102 +1,121 @@
 import os
 import psycopg2
-from flask import Flask, render_template, request, redirect
+from flask import Flask, request, jsonify, render_template, redirect, url_for
+from datetime import datetime
 
 app = Flask(__name__)
 
-# ✅ Connexion PostgreSQL (Render Internal Database URL)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://eshop_db_d9qc_user:6IoPk0zWxCmDL9EEQshbWrmK54bdfced@dpg-cv93lh1u0jms73eevl00-a.frankfurt-postgres.render.com/eshop_db_d9qc")
+# ✅ Remplace ici par ton NOUVEAU lien PostgreSQL
+DATABASE_URL = "postgresql://eshop_db_d9qc_user:6IoPk0zWxCmDL9EEQshbWrmK54bdfced@dpg-cv93lh1u0jms73eevl00-a.frankfurt-postgres.render.com/eshop_db_d9qc"
 
-# ✅ Fonction pour se connecter à PostgreSQL
 def get_db():
+    """Connexion à PostgreSQL"""
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        print("🔗 Connexion à PostgreSQL...")
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        print("✅ Connexion réussie !")
         return conn
     except psycopg2.OperationalError as e:
         print("❌ ERREUR DE CONNEXION À POSTGRESQL :", e)
         return None
 
-# ✅ Création des tables si elles n'existent pas
-def create_tables():
-    db = get_db()
-    if db:
-        cursor = db.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                id SERIAL PRIMARY KEY,
-                product_name TEXT NOT NULL,
-                ip TEXT NOT NULL,
-                user_agent TEXT NOT NULL,
-                payment_method TEXT NOT NULL,
-                refund_requested BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        db.commit()
-        cursor.close()
-        db.close()
-        print("✅ Tables créées avec succès.")
-
-# ✅ Route pour afficher la boutique
+# ✅ Route : Page d'accueil des achats
 @app.route("/")
 def index():
-    products = [
-        {"name": "Sac Louis Vuitton", "price": 1500},
-        {"name": "Montre Rolex", "price": 10000},
-        {"name": "Chaussures Gucci", "price": 800}
-    ]
-    return render_template("index.html", products=products)
+    return render_template("index.html")
 
-# ✅ Route pour traiter les achats
-@app.route("/buy", methods=["POST"])
-def buy():
-    product_name = request.form.get("product_name")
-    payment_method = request.form.get("payment_method")
-    user_ip = request.remote_addr
-    user_agent = request.headers.get("User-Agent")
-
-    # Enregistrer la commande en base de données
-    db = get_db()
-    if db:
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO orders (product_name, ip, user_agent, payment_method)
-            VALUES (%s, %s, %s, %s)
-        """, (product_name, user_ip, user_agent, payment_method))
-        db.commit()
-        cursor.close()
-        db.close()
-
-    return redirect("/orders")
-
-# ✅ Route pour afficher l'historique des commandes
+# ✅ Route : Historique des commandes
 @app.route("/orders")
 def orders():
     db = get_db()
     if db:
         cursor = db.cursor()
-        cursor.execute("SELECT id, product_name, ip, user_agent, payment_method, refund_requested, created_at FROM orders ORDER BY created_at DESC")
+        cursor.execute("SELECT id, product_name, ip, user_agent, payment_method, created_at FROM orders ORDER BY created_at DESC")
         orders = cursor.fetchall()
         cursor.close()
         db.close()
         return render_template("orders.html", orders=orders)
     else:
-        return "❌ Impossible de se connecter à la base de données."
+        return "❌ Impossible de se connecter à la base de données.", 500
 
-# ✅ Route pour demander un remboursement
-@app.route("/refund/<int:order_id>")
-def request_refund(order_id):
-    db = get_db()
-    if db:
-        cursor = db.cursor()
-        cursor.execute("UPDATE orders SET refund_requested = TRUE WHERE id = %s", (order_id,))
-        db.commit()
-        cursor.close()
-        db.close()
-    return redirect("/orders")
+# ✅ Route : Achat d'un produit
+@app.route("/buy", methods=["POST"])
+def buy():
+    try:
+        data = request.form
+        product_name = data.get("product_name")
+        payment_method = data.get("payment_method")
+        user_ip = request.remote_addr
+        user_agent = request.headers.get("User-Agent")
+        created_at = datetime.utcnow()
 
-# ✅ Lancer l'application
+        db = get_db()
+        if db:
+            cursor = db.cursor()
+            cursor.execute("""
+                INSERT INTO orders (product_name, ip, user_agent, payment_method, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (product_name, user_ip, user_agent, payment_method, created_at))
+
+            db.commit()
+            cursor.close()
+            db.close()
+
+        return redirect(url_for("orders"))
+
+    except Exception as e:
+        print("❌ Erreur API achat:", e)
+        return jsonify({"error": str(e)}), 500
+
+# ✅ Route : Demande de remboursement
+@app.route("/refund", methods=["POST"])
+def refund():
+    try:
+        order_id = request.form.get("order_id")
+
+        db = get_db()
+        if db:
+            cursor = db.cursor()
+
+            # Vérifier si la commande existe
+            cursor.execute("SELECT id FROM orders WHERE id = %s", (order_id,))
+            order = cursor.fetchone()
+
+            if order:
+                # Insérer la demande de remboursement
+                cursor.execute("""
+                    INSERT INTO refunds (order_id, status, created_at)
+                    VALUES (%s, %s, %s)
+                """, (order_id, "En attente", datetime.utcnow()))
+
+                db.commit()
+                cursor.close()
+                db.close()
+                return redirect(url_for("orders"))
+
+            else:
+                return "❌ Commande non trouvée.", 404
+
+    except Exception as e:
+        print("❌ Erreur API remboursement:", e)
+        return jsonify({"error": str(e)}), 500
+
+# ✅ Route : Vérification connexion PostgreSQL
+@app.route("/test-db")
+def test_db():
+    try:
+        db = get_db()
+        if db:
+            cursor = db.cursor()
+            cursor.execute("SELECT 1")
+            cursor.close()
+            db.close()
+            return "✅ Connexion à PostgreSQL réussie !"
+        else:
+            return "❌ Impossible de se connecter à PostgreSQL"
+    except Exception as e:
+        return f"❌ Erreur PostgreSQL : {e}"
+
 if __name__ == "__main__":
-    create_tables()
-    port = int(os.environ.get("PORT", 10000))  # Utilise le port attribué par Render
+    port = int(os.environ.get("PORT", 10002))  # Assure-toi que Site2 utilise un port différent
     app.run(host="0.0.0.0", port=port, debug=True)
