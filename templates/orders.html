@@ -2,29 +2,43 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Historique des Commandes</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historique des commandes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <h1>Vos Commandes</h1>
-    <table border="1">
-        <tr>
-            <th>ID</th><th>Produit</th><th>Paiement</th><th>Remboursement</th><th>Date</th><th>Action</th>
-        </tr>
-        {% for order in orders %}
+    <h1>📦 Historique des commandes</h1>
+    <a href="/">⬅ Retour à la boutique</a>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Produit</th>
+                <th>Adresse IP</th>
+                <th>Agent Utilisateur</th>
+                <th>Méthode de paiement</th>
+                <th>Date</th>
+                <th>Remboursement</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
             <tr>
                 <td>{{ order[0] }}</td>
                 <td>{{ order[1] }}</td>
+                <td>{{ order[2] }}</td>
+                <td>{{ order[3] }}</td>
                 <td>{{ order[4] }}</td>
-                <td>{% if order[5] %}✅ Demandé{% else %}❌ Non demandé{% endif %}</td>
-                <td>{{ order[6] }}</td>
+                <td>{{ order[5] }}</td>
                 <td>
-                    {% if not order[5] %}
-                        <a href="/refund/{{ order[0] }}">💰 Demander un remboursement</a>
-                    {% endif %}
+                    <form action="{{ url_for('refund') }}" method="post">
+                        <input type="hidden" name="order_id" value="{{ order[0] }}">
+                        <button type="submit">💰 Demander un remboursement</button>
+                    </form>
                 </td>
             </tr>
-        {% endfor %}
+            {% endfor %}
+        </tbody>
     </table>
-    <a href="/">Retour à la boutique</a>
 </body>
 </html>

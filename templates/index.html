@@ -2,29 +2,28 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Boutique de Luxe</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
-        h1 { color: #333; }
-        .product { border: 1px solid #ddd; padding: 20px; margin: 10px; background: white; display: inline-block; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boutique en ligne</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <h1>Bienvenue dans notre Boutique</h1>
-    {% for product in products %}
-        <div class="product">
-            <p><strong>{{ product.name }}</strong> - {{ product.price }}€</p>
-            <form action="/buy" method="POST">
-                <input type="hidden" name="product_name" value="{{ product.name }}">
-                <label>Paiement :</label>
-                <select name="payment_method">
-                    <option value="credit_card">Carte de crédit</option>
-                    <option value="paypal">PayPal</option>
-                    <option value="crypto">Crypto</option>
-                </select>
-                <button type="submit">Acheter</button>
-            </form>
-        </div>
-    {% endfor %}
+    <h1>🛍 Boutique en ligne</h1>
+    <a href="/orders">📦 Voir les commandes</a>
+    <form action="{{ url_for('buy') }}" method="post">
+        <label for="product_name">Produit :</label>
+        <select name="product_name" id="product_name">
+            <option value="MacBook Pro">💻 MacBook Pro</option>
+            <option value="iPhone 14">📱 iPhone 14</option>
+            <option value="AirPods Pro">🎧 AirPods Pro</option>
+            <option value="iPad Pro">📟 iPad Pro</option>
+        </select>
+        <label for="payment_method">Méthode de paiement :</label>
+        <select name="payment_method" id="payment_method">
+            <option value="credit_card">💳 Carte de crédit</option>
+            <option value="paypal">💰 PayPal</option>
+            <option value="crypto">₿ Cryptomonnaie</option>
+        </select>
+        <button type="submit">🛒 Acheter</button>
+    </form>
 </body>
 </html>
