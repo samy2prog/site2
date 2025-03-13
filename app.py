@@ -1,109 +1,102 @@
-from flask import Flask, render_template, request, jsonify, g
-import psycopg2
 import os
-import requests
+import psycopg2
+from flask import Flask, render_template, request, redirect
 
 app = Flask(__name__)
 
-# 🔹 Configuration PostgreSQL sur Render
-DATABASE_URL = "postgresql://eshop_user:Idx7b2u8UfXodOCQn3oGHwrzwtyP3CbI@dpg-cv908nin91rc73d5bes0-a.internal/render.com/eshop_db_c764"
+# ✅ Connexion PostgreSQL (Render Internal Database URL)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://eshop_user:Idx7b2u8UfXodOCQn3oGHwrzwtyP3CbI@dpg-cv908nin91rc73d5bes0-a/eshop_db_c764")
 
+# ✅ Fonction pour se connecter à PostgreSQL
 def get_db():
-    """Connexion à la base PostgreSQL"""
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    except psycopg2.OperationalError as e:
+        print("❌ ERREUR DE CONNEXION À POSTGRESQL :", e)
+        return None
 
-# 🔹 Création des tables dans PostgreSQL
+# ✅ Création des tables si elles n'existent pas
 def create_tables():
     db = get_db()
-    cursor = db.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS orders (
-            id SERIAL PRIMARY KEY,
-            product_name TEXT,
-            user_ip TEXT,
-            user_agent TEXT,
-            payment_method TEXT,
-            refund_count INTEGER DEFAULT 0
-        )
-    """)
-    db.commit()
-    cursor.close()
-    db.close()
-
-create_tables()
-
-products = [
-    {"id": 1, "name": "Sneakers Nike", "price": 120},
-    {"id": 2, "name": "Sac Louis Vuitton", "price": 2200},
-    {"id": 3, "name": "Montre Rolex", "price": 15000}
-]
-
-@app.route("/")
-def home():
-    """Affichage des produits et des commandes"""
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT * FROM orders")
-    orders = cursor.fetchall()
-    db.close()
-    
-    return render_template("index.html", products=products, orders=orders)
-
-@app.route("/checkout", methods=["POST"])
-def checkout():
-    """Ajout d'une commande et vérification de la fraude"""
-    data = request.json
-
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("""
-        INSERT INTO orders (product_name, user_ip, user_agent, payment_method, refund_count)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (data["product_name"], data["ip"], data["user_agent"], data["payment_method"], 0))
-    db.commit()
-
-    # 🔹 Vérification de la fraude via l'API
-    API_URL = "http://127.0.0.1:5000/detect"
-    response = requests.post(API_URL, json=data)
-    fraud_result = response.json()
-
-    db.close()
-    return jsonify({"message": "Commande enregistrée", "risk_score": fraud_result.get("risk_score", "Erreur API")})
-
-@app.route("/refund", methods=["POST"])
-def refund():
-    """Gestion des remboursements"""
-    data = request.json
-    order_id = data["order_id"]
-
-    db = get_db()
-    cursor = db.cursor()
-    
-    cursor.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
-    order = cursor.fetchone()
-
-    if not order:
+    if db:
+        cursor = db.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS orders (
+                id SERIAL PRIMARY KEY,
+                product_name TEXT NOT NULL,
+                ip TEXT NOT NULL,
+                user_agent TEXT NOT NULL,
+                payment_method TEXT NOT NULL,
+                refund_requested BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        db.commit()
+        cursor.close()
         db.close()
-        return jsonify({"error": "Commande non trouvée"}), 404
+        print("✅ Tables créées avec succès.")
 
-    refund_count = order[5] + 1  # Incrémente le nombre de remboursements
-    cursor.execute("UPDATE orders SET refund_count = %s WHERE id = %s", (refund_count, order_id))
-    db.commit()
+# ✅ Route pour afficher la boutique
+@app.route("/")
+def index():
+    products = [
+        {"name": "Sac Louis Vuitton", "price": 1500},
+        {"name": "Montre Rolex", "price": 10000},
+        {"name": "Chaussures Gucci", "price": 800}
+    ]
+    return render_template("index.html", products=products)
 
-    # 🔹 Vérification du risque après remboursement
-    fraud_data = {
-        "ip": order[2],
-        "user_agent": order[3],
-        "payment_method": order[4],
-        "refund_count": refund_count
-    }
-    API_URL = "http://127.0.0.1:5000/detect"
-    response = requests.post(API_URL, json=fraud_data)
-    fraud_result = response.json()
+# ✅ Route pour traiter les achats
+@app.route("/buy", methods=["POST"])
+def buy():
+    product_name = request.form.get("product_name")
+    payment_method = request.form.get("payment_method")
+    user_ip = request.remote_addr
+    user_agent = request.headers.get("User-Agent")
 
-    db.close()
-    return jsonify({"message": "Remboursement effectué", "risk_score": fraud_result.get("risk_score", "Erreur API")})
+    # Enregistrer la commande en base de données
+    db = get_db()
+    if db:
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO orders (product_name, ip, user_agent, payment_method)
+            VALUES (%s, %s, %s, %s)
+        """, (product_name, user_ip, user_agent, payment_method))
+        db.commit()
+        cursor.close()
+        db.close()
 
+    return redirect("/orders")
+
+# ✅ Route pour afficher l'historique des commandes
+@app.route("/orders")
+def orders():
+    db = get_db()
+    if db:
+        cursor = db.cursor()
+        cursor.execute("SELECT id, product_name, ip, user_agent, payment_method, refund_requested, created_at FROM orders ORDER BY created_at DESC")
+        orders = cursor.fetchall()
+        cursor.close()
+        db.close()
+        return render_template("orders.html", orders=orders)
+    else:
+        return "❌ Impossible de se connecter à la base de données."
+
+# ✅ Route pour demander un remboursement
+@app.route("/refund/<int:order_id>")
+def request_refund(order_id):
+    db = get_db()
+    if db:
+        cursor = db.cursor()
+        cursor.execute("UPDATE orders SET refund_requested = TRUE WHERE id = %s", (order_id,))
+        db.commit()
+        cursor.close()
+        db.close()
+    return redirect("/orders")
+
+# ✅ Lancer l'application
 if __name__ == "__main__":
-    app.run(port=5002, debug=True)
+    create_tables()
+    port = int(os.environ.get("PORT", 10000))  # Utilise le port attribué par Render
+    app.run(host="0.0.0.0", port=port, debug=True)

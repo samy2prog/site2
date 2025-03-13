@@ -2,74 +2,29 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>eShop Mode</title>
-    <script>
-        function checkout(productName) {
-            let orderData = {
-                product_name: productName,
-                ip: "176.132.233.26",
-                user_agent: navigator.userAgent,
-                payment_method: document.getElementById("payment").value
-            };
-
-            fetch("/checkout", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(orderData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(productName + " - Risk Score: " + (data.risk_score || "Erreur API"));
-                location.reload();
-            })
-            .catch(error => alert("Erreur lors de l'achat : " + error));
-        }
-
-        function refund(orderId) {
-            fetch("/refund", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ order_id: orderId })
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert("Remboursement : " + data.message + "\nNouveau Risk Score : " + (data.risk_score || "Erreur API"));
-                location.reload();
-            })
-            .catch(error => alert("Erreur lors du remboursement : " + error));
-        }
-    </script>
+    <title>Boutique de Luxe</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
+        h1 { color: #333; }
+        .product { border: 1px solid #ddd; padding: 20px; margin: 10px; background: white; display: inline-block; }
+    </style>
 </head>
 <body>
-    <h1>Bienvenue sur eShop Mode</h1>
-
-    <label for="payment">Méthode de paiement :</label>
-    <select id="payment">
-        <option value="credit_card">Carte Bancaire</option>
-        <option value="crypto">Crypto</option>
-        <option value="paypal">PayPal</option>
-    </select>
-
-    <h2>Produits :</h2>
+    <h1>Bienvenue dans notre Boutique</h1>
     {% for product in products %}
-        <p>
-            <strong>{{ product.name }}</strong> - {{ product.price }}€ 
-            <button onclick="checkout('{{ product.name }}')">Acheter</button>
-        </p>
+        <div class="product">
+            <p><strong>{{ product.name }}</strong> - {{ product.price }}€</p>
+            <form action="/buy" method="POST">
+                <input type="hidden" name="product_name" value="{{ product.name }}">
+                <label>Paiement :</label>
+                <select name="payment_method">
+                    <option value="credit_card">Carte de crédit</option>
+                    <option value="paypal">PayPal</option>
+                    <option value="crypto">Crypto</option>
+                </select>
+                <button type="submit">Acheter</button>
+            </form>
+        </div>
     {% endfor %}
-
-    <h2>Historique des achats :</h2>
-    {% if orders|length > 0 %}
-        {% for order in orders %}
-            <p>
-                Produit : <strong>{{ order["product_name"] }}</strong> <br>
-                Méthode de paiement : {{ order["payment_method"] }} <br>
-                Remboursements : {{ order["refund_count"] }} <br>
-                <button onclick="refund('{{ order['id'] }}')">Demander un remboursement</button>
-            </p>
-        {% endfor %}
-    {% else %}
-        <p>Aucune commande enregistrée.</p>
-    {% endif %}
 </body>
 </html>

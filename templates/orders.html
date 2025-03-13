@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Historique des Commandes</title>
+</head>
+<body>
+    <h1>Vos Commandes</h1>
+    <table border="1">
+        <tr>
+            <th>ID</th><th>Produit</th><th>Paiement</th><th>Remboursement</th><th>Date</th><th>Action</th>
+        </tr>
+        {% for order in orders %}
+            <tr>
+                <td>{{ order[0] }}</td>
+                <td>{{ order[1] }}</td>
+                <td>{{ order[4] }}</td>
+                <td>{% if order[5] %}✅ Demandé{% else %}❌ Non demandé{% endif %}</td>
+                <td>{{ order[6] }}</td>
+                <td>
+                    {% if not order[5] %}
+                        <a href="/refund/{{ order[0] }}">💰 Demander un remboursement</a>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
+    <a href="/">Retour à la boutique</a>
+</body>
+</html>
