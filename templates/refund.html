@@ -2,110 +2,33 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Demande de remboursement</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
-
-        .container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-
-        h2 {
-            color: #333;
-        }
-
-        label {
-            display: block;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-
-        input {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-
-        button {
-            margin-top: 15px;
-            padding: 10px 20px;
-            border: none;
-            background: #007BFF;
-            color: white;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background: #0056b3;
-        }
-
-        .message {
-            margin-top: 15px;
-            font-weight: bold;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-
-    <div class="container">
-        <h2>Demander un remboursement</h2>
-        <form id="refundForm">
-            <label for="order_id">Numéro de commande :</label>
-            <input type="number" id="order_id" name="order_id" required>
-            <button type="submit">Envoyer la demande</button>
-        </form>
-        <p id="responseMessage" class="message"></p>
-    </div>
+    <h1>Demande de remboursement</h1>
+    <form id="refundForm">
+        <label for="order_id">Numéro de commande :</label>
+        <input type="number" id="order_id" name="order_id" required>
+        <button type="submit">Demander un remboursement</button>
+    </form>
+    <p id="refundMessage"></p>
 
     <script>
         document.getElementById("refundForm").addEventListener("submit", function(event) {
-            event.preventDefault(); // Empêche le rechargement de la page
-
-            let orderId = document.getElementById("order_id").value;
-            
+            event.preventDefault();
+            const orderId = document.getElementById("order_id").value;
             fetch("/refund", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ order_id: parseInt(orderId) }) // Convertir en JSON
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ order_id: orderId })
             })
             .then(response => response.json())
             .then(data => {
-                let message = document.getElementById("responseMessage");
-                if (data.error) {
-                    message.style.color = "red";
-                    message.innerText = "Erreur : " + data.error;
-                } else {
-                    message.style.color = "green";
-                    message.innerText = "✅ Remboursement demandé avec succès !";
-                    setTimeout(() => { window.location.reload(); }, 2000); // Rafraîchir après 2s
-                }
+                document.getElementById("refundMessage").textContent = data.message || data.error;
             })
-            .catch(error => {
-                console.error("Erreur :", error);
-                document.getElementById("responseMessage").innerText = "Erreur de connexion à l'API.";
-            });
+            .catch(error => console.error("Erreur:", error));
         });
     </script>
-
 </body>
 </html>
